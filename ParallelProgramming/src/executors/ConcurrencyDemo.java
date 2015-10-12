@@ -5,16 +5,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import executors.ConcurrencyDemo.Sites;
 
 
+
 /**
+ * One client (associated with Stanford University) is interested to give me Java Development work by reference by only LinkedIn.
+ * 
  * This class will demonstrate the usage of multi-threading concept with the real world example.<BR>
  * <B>Goal : </B>Minimize the waiting/blocking time to complete the all schedules parallel tasks.<BR>
  * <B>Tasks : </B>To download the list of sites/pages in parallel.<BR>
@@ -110,6 +115,25 @@ public class ConcurrencyDemo {
 			return this.time;
 		}
 		
+		/**
+		 * download the site
+		 * 
+		 * @param site
+		 * @return
+		 */
+		public Sites downloadSite(){
+			try {
+				System.out.println("Starting to download page ------------> "+this.getSiteURL());
+				/** just blocking the current thread with specified time */
+				Thread.sleep(this.getTime());
+				System.out.println("Completed to download page ------------> "+this.getSiteURL());
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			return this;
+		}
+		
+		
 		@Override
 		public String toString() {
 			return new StringBuffer(this.name())
@@ -122,19 +146,22 @@ public class ConcurrencyDemo {
 		}
 	}
 	
-	private static Sites logAndGet(Sites site) throws Exception{
-		System.out.println("Starting to download page ------------> "+site.getSiteURL());
-    	Thread.sleep(site.getTime());
-    	System.out.println("Completed to download page ------------> "+site.getSiteURL());
-    	return site;
+	/**
+	 * extracting the data from site
+	 * 
+	 * @param site
+	 * @return
+	 */
+	public static void extractDataFromSite(Sites site){
+		System.out.println("Extracting the data from : " + site);
 	}
 	
 	/**
-	 * Java 7 code example which will wait for 
+	 * Java 7 code example with blocking
 	 * 
 	 * @throws Exception
 	 */
-	private static void processTasksWithWait() throws Exception{
+	private static void processTasksWithBlockingUsingJava7() throws Exception{
 		final ExecutorService pool = Executors.newFixedThreadPool(5);
 		List<Future<Sites>> contentsFutures = new ArrayList<>(Sites.values().length);
 		
@@ -144,7 +171,7 @@ public class ConcurrencyDemo {
 		    final Future<Sites> contentFuture = pool.submit(new Callable<Sites>() {
 		        @Override
 		        public Sites call() throws Exception {
-		        	return logAndGet(site);
+		        	return site.downloadSite();
 		        }
 		    });
 		    contentsFutures.add(contentFuture);
@@ -160,7 +187,12 @@ public class ConcurrencyDemo {
 		logFinalBlockTime(totalBlockingTime);
 	}
 	
-	private static void processTasksWithoutWait() throws Exception{
+	/**
+	 * Java 7 code example with non-blocking
+	 * 
+	 * @throws Exception
+	 */
+	private static void processTasksWithoutBlockingUsingJava7() throws Exception{
 		final ExecutorService pool = Executors.newFixedThreadPool(5);
 		Map<Sites, LoggableEvent> events = LoggableEvent.generateEvents(Sites.values());
 		
@@ -169,7 +201,7 @@ public class ConcurrencyDemo {
 		    completionService.submit(new Callable<Sites>() {
 		        @Override
 		        public Sites call() throws Exception {
-		        	return logAndGet(site);
+		        	return site.downloadSite();
 		        }
 		    });
 		}
@@ -185,7 +217,17 @@ public class ConcurrencyDemo {
 		
 		logFinalBlockTime(totalBlockingTime);
 	}
-
+	
+	private static void processTasksWithoutBlockingUsingJava8() throws Exception{
+		
+		Map<Sites, LoggableEvent> events = LoggableEvent.generateEvents(Sites.values());
+		
+		Stream.of(Sites.values()).forEach(site -> {
+			CompletableFuture.supplyAsync(site::downloadSite)
+			.thenAccept(ConcurrencyDemo::extractDataFromSite);
+		});
+	}
+	
 	private static void logFinalBlockTime(long totalBlockingTime) {
 		System.out.println("\n\n\nThe total waiting time for all the sites : "+LoggableEvent.getTimeDiffString(totalBlockingTime));
 	}
@@ -206,11 +248,11 @@ public class ConcurrencyDemo {
 		switch (TestSuite.getCurrentMode()) {
 		case JAVA_7_BLOCKING:
 			System.out.println(TestSuite.JAVA_7_BLOCKING + " is running..!");
-			processTasksWithoutWait();
+			processTasksWithBlockingUsingJava7();
 			break;
 		case JAVA_7_NON_BLOCKING:
 			System.out.println(TestSuite.JAVA_7_NON_BLOCKING + " is running..!");
-			processTasksWithWait();
+			processTasksWithoutBlockingUsingJava7();
 			break;
 		case JAVA_8_NON_BLOCKING:	
 			System.out.println(TestSuite.JAVA_8_NON_BLOCKING + " is running..!");
